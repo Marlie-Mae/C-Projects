@@ -1,101 +1,203 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Windows.Forms;
-using Microsoft.Data.SqlClient; // Use this if you're on .NET Core or later
+using Microsoft.Data.SqlClient;
 
 namespace ProductForm
 {
-    public partial class Form2 : Form
+    public partial class Form3 : Form
     {
-        public Form2()
+        private DataTable productsTable; // To hold the product records
+        private int currentIndex = -1; // To track the current index in the product list
+
+        public Form3()
         {
             InitializeComponent();
-            LoadProducts(); // Load products when the form initializes
+            LoadProducts(); // Load products on form initialization
+            InitializeUnitComboBox(); // Populate the combo box for units
         }
 
         private void LoadProducts()
         {
-            // Connection string to connect to your database
             string connectionString = @"Data Source=DESKTOP-TI7OG5Q\SQLEXPRESS;Initial Catalog=ProductDB;Integrated Security=True;TrustServerCertificate=True;";
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
-                // SQL query to select all products from the Products table
                 string query = "SELECT * FROM Products";
-
-                // Using SqlDataAdapter to fill a DataTable
                 using (SqlDataAdapter adapter = new SqlDataAdapter(query, connection))
                 {
-                    DataTable productsTable = new DataTable();
-                    adapter.Fill(productsTable); // Fill the DataTable with data
-                    dataGridView1.DataSource = productsTable; // Bind the DataTable to the DataGridView
+                    productsTable = new DataTable();
+                    adapter.Fill(productsTable);
+                }
+            }
+
+            if (productsTable.Rows.Count > 0)
+            {
+                currentIndex = 0; // Start at the first product
+                LoadProductDetails(); // Load the first product details into the text boxes
+            }
+            else
+            {
+                MessageBox.Show("No products available.");
+            }
+        }
+
+        private void InitializeUnitComboBox()
+        {
+            // Add possible units to the combo box
+            comboUnit.Items.AddRange(new string[] { "pcs", "kg", "ltr", "box", "dozen", "gram", "meter", "pack" });
+        }
+
+        private void LoadProductDetails()
+        {
+            if (currentIndex >= 0 && currentIndex < productsTable.Rows.Count)
+            {
+                DataRow row = productsTable.Rows[currentIndex];
+                txtpid.Text = row["Product_ID"].ToString();
+                txtpname.Text = row["Product_Name"].ToString();
+
+                // Check for DBNull before casting
+                if (row["Quantity"] != DBNull.Value)
+                {
+                    quantity.Value = Convert.ToInt32(row["Quantity"]); // Load Quantity
+                }
+                else
+                {
+                    quantity.Value = 0; // Or set it to any default value you prefer
+                }
+
+                // Check for DBNull before assigning to the ComboBox
+                if (row["Unit"] != DBNull.Value)
+                {
+                    comboUnit.SelectedItem = row["Unit"].ToString(); // Load Unit
+                }
+                else
+                {
+                    comboUnit.SelectedIndex = -1; // Or set to a default value
                 }
             }
         }
 
-        private void dataGridView1_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        private void btnnext_Click(object sender, EventArgs e)
         {
-            // This method can be used to handle cell clicks if needed
-        }
-
-        private void comboHistory_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            // Get the selected item from the ComboBox
-            string selectedOption = comboHistory.SelectedItem.ToString();
-
-            // Based on the selected option, open the corresponding form
-            switch (selectedOption)
+            if (currentIndex < productsTable.Rows.Count - 1)
             {
-                case "Product":
-                    Form1 availableProductsForm = new Form1();
-                    availableProductsForm.Show(); // Show Form1
-                    this.Hide(); // Hide the current form (optional)
-                    break;
-
-                case "Stock IN":
-                    Form3 stockInForm = new Form3();
-                    stockInForm.Show(); // Show Form3
-                    this.Hide(); // Hide the current form (optional)
-                    break;
-
-                case "Stock OUT":
-                    Form4 stockOutForm = new Form4();
-                    stockOutForm.Show(); // Show Form4
-                    this.Hide(); // Hide the current form (optional)
-                    break;
-
-                case "Product History":
-                    Form5 productHistoryForm = new Form5();
-                    productHistoryForm.Show(); // Show Form5
-                    this.Hide(); // Hide the current form (optional)
-                    break;
-
-                default:
-                    break;
+                currentIndex++;
+                LoadProductDetails(); // Load the next product details
+            }
+            else
+            {
+                MessageBox.Show("You are at the last product.");
             }
         }
 
-        private void btnsin_Click(object sender, EventArgs e)
+        private void btnprev_Click(object sender, EventArgs e)
         {
-            // Navigate to Form3 (Stock IN)
-            Form3 stockInForm = new Form3();
-            stockInForm.Show(); // Show the Stock IN form
-            this.Hide(); // Optionally hide the current form
+            if (currentIndex > 0)
+            {
+                currentIndex--;
+                LoadProductDetails(); // Load the previous product details
+            }
+            else
+            {
+                MessageBox.Show("You are at the first product.");
+            }
         }
 
-        private void btnsout_Click(object sender, EventArgs e)
+        private void btnadd_Click(object sender, EventArgs e)
         {
-            // Navigate to Form4 (Stock OUT)
-            Form4 stockOutForm = new Form4();
-            stockOutForm.Show(); // Show the Stock OUT form
-            this.Hide(); // Optionally hide the current form
+            string connectionString = @"Data Source=DESKTOP-TI7OG5Q\SQLEXPRESS;Initial Catalog=ProductDB;Integrated Security=True;TrustServerCertificate=True;";
+
+            // Get values from the form
+            string productId = txtpid.Text;
+            string supplier = txtsupplier.Text;
+            string customer = " "; // Empty for Stock IN
+            int quantityAdded = (int)quantity.Value;
+            DateTime transactionDate = dateTimePicker1.Value;
+            string unit = comboUnit.SelectedItem?.ToString(); // Selected unit
+
+            using (SqlConnection connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                SqlTransaction transaction = connection.BeginTransaction();
+
+                try
+                {
+                    // 1. Insert transaction into History table
+                    string insertQuery = @"INSERT INTO History (Product_ID, Transaction_Date, Transaction_Type, Quantity, Unit, Supplier, Customer) 
+                                   VALUES (@ProductID, @TransactionDate, 'In', @Quantity, @Unit, @Supplier, @Customer)";
+                    using (SqlCommand command = new SqlCommand(insertQuery, connection, transaction))
+                    {
+                        command.Parameters.AddWithValue("@ProductID", productId);
+                        command.Parameters.AddWithValue("@TransactionDate", transactionDate);
+                        command.Parameters.AddWithValue("@Quantity", quantityAdded);
+                        command.Parameters.AddWithValue("@Unit", unit);
+                        command.Parameters.AddWithValue("@Supplier", supplier);
+                        command.Parameters.AddWithValue("@Customer", customer);
+                        command.ExecuteNonQuery();
+                    }
+
+                    // 2. Update Quantity and Unit in Products table
+                    string updateProductQuery = @"UPDATE Products 
+                                          SET Quantity = COALESCE(Quantity, 0) + @Quantity, Unit = @Unit 
+                                          WHERE Product_ID = @ProductID";
+                    using (SqlCommand updateCommand = new SqlCommand(updateProductQuery, connection, transaction))
+                    {
+                        updateCommand.Parameters.AddWithValue("@ProductID", productId);
+                        updateCommand.Parameters.AddWithValue("@Quantity", quantityAdded);
+                        updateCommand.Parameters.AddWithValue("@Unit", unit);
+                        updateCommand.ExecuteNonQuery();
+                    }
+
+                    transaction.Commit();
+                    MessageBox.Show("Stock IN transaction recorded successfully.");
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    MessageBox.Show("Error in recording transaction: " + ex.Message);
+                }
+            }
         }
 
-        private void btnclose_Click(object sender, EventArgs e)
+
+        private void btnclear_Click(object sender, EventArgs e)
         {
-            // Close the application
-            Application.Exit();
+            // Clear text boxes and reset fields
+            txtpid.Clear();
+            txtpname.Clear();
+            quantity.Value = 0;
+            comboUnit.SelectedIndex = -1; // Reset the combo box selection
+            txtsupplier.Clear();
         }
 
+        private void btnprod_Click(object sender, EventArgs e)
+        {
+            // Navigate to Form1
+            Form1 form1 = new Form1();
+            form1.Show();
+            this.Hide(); // Hide the current form
+        }
+
+        private void btnavail_Click(object sender, EventArgs e)
+        {
+            // Navigate to Form2 (Available Products)
+            Form2 form2 = new Form2();
+            form2.Show();
+            this.Hide(); // Hide the current form
+        }
+
+        private void btnhistory_Click(object sender, EventArgs e)
+        {
+            // Navigate to Form5 (History)
+            Form5 form5 = new Form5();
+            form5.Show();
+            this.Hide(); // Hide the current form
+        }
+
+        private void quantity_ValueChanged(object sender, EventArgs e)
+        {
+
+        }
     }
 }
