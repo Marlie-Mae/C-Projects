@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
@@ -108,40 +108,58 @@ namespace ProductForm
         {
             string connectionString = @"Data Source=DESKTOP-TI7OG5Q\SQLEXPRESS;Initial Catalog=ProductDB;Integrated Security=True;TrustServerCertificate=True;";
 
-            // Get the values from the form
+            // Get values from the form
             string productId = txtpid.Text;
             string supplier = txtsupplier.Text;
-            string customer = " "; // You might want to collect this from another TextBox
+            string customer = " "; // Empty for Stock IN
             int quantityAdded = (int)quantity.Value;
             DateTime transactionDate = dateTimePicker1.Value;
-            string unit = comboUnit.SelectedItem?.ToString(); // Get selected unit from ComboBox
+            string unit = comboUnit.SelectedItem?.ToString(); // Selected unit
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             {
                 connection.Open();
-                string insertQuery = "INSERT INTO History (Product_ID, Transaction_Date, Transaction_Type, Quantity, Unit, Supplier, Customer) VALUES (@ProductID, @TransactionDate, 'In', @Quantity, @Unit, @Supplier, @Customer)";
+                SqlTransaction transaction = connection.BeginTransaction();
 
-                using (SqlCommand command = new SqlCommand(insertQuery, connection))
+                try
                 {
-                    command.Parameters.AddWithValue("@ProductID", productId);
-                    command.Parameters.AddWithValue("@TransactionDate", transactionDate);
-                    command.Parameters.AddWithValue("@Quantity", quantityAdded);
-                    command.Parameters.AddWithValue("@Unit", unit); // Add unit to the parameters
-                    command.Parameters.AddWithValue("@Supplier", supplier);
-                    command.Parameters.AddWithValue("@Customer", customer);
+                    // 1. Insert transaction into History table
+                    string insertQuery = @"INSERT INTO History (Product_ID, Transaction_Date, Transaction_Type, Quantity, Unit, Supplier, Customer) 
+                                   VALUES (@ProductID, @TransactionDate, 'In', @Quantity, @Unit, @Supplier, @Customer)";
+                    using (SqlCommand command = new SqlCommand(insertQuery, connection, transaction))
+                    {
+                        command.Parameters.AddWithValue("@ProductID", productId);
+                        command.Parameters.AddWithValue("@TransactionDate", transactionDate);
+                        command.Parameters.AddWithValue("@Quantity", quantityAdded);
+                        command.Parameters.AddWithValue("@Unit", unit);
+                        command.Parameters.AddWithValue("@Supplier", supplier);
+                        command.Parameters.AddWithValue("@Customer", customer);
+                        command.ExecuteNonQuery();
+                    }
 
-                    int rowsAffected = command.ExecuteNonQuery();
-                    if (rowsAffected > 0)
+                    // 2. Update Quantity and Unit in Products table
+                    string updateProductQuery = @"UPDATE Products 
+                                          SET Quantity = COALESCE(Quantity, 0) + @Quantity, Unit = @Unit 
+                                          WHERE Product_ID = @ProductID";
+                    using (SqlCommand updateCommand = new SqlCommand(updateProductQuery, connection, transaction))
                     {
-                        MessageBox.Show("Stock IN transaction recorded successfully.");
+                        updateCommand.Parameters.AddWithValue("@ProductID", productId);
+                        updateCommand.Parameters.AddWithValue("@Quantity", quantityAdded);
+                        updateCommand.Parameters.AddWithValue("@Unit", unit);
+                        updateCommand.ExecuteNonQuery();
                     }
-                    else
-                    {
-                        MessageBox.Show("Error in recording the transaction.");
-                    }
+
+                    transaction.Commit();
+                    MessageBox.Show("Stock IN transaction recorded successfully.");
+                }
+                catch (Exception ex)
+                {
+                    transaction.Rollback();
+                    MessageBox.Show("Error in recording transaction: " + ex.Message);
                 }
             }
         }
+
 
         private void btnclear_Click(object sender, EventArgs e)
         {
@@ -163,9 +181,9 @@ namespace ProductForm
 
         private void btnavail_Click(object sender, EventArgs e)
         {
-            // Navigate to Form4 (Available Products)
-            Form4 form4 = new Form4();
-            form4.Show();
+            // Navigate to Form2 (Available Products)
+            Form2 form2 = new Form2();
+            form2.Show();
             this.Hide(); // Hide the current form
         }
 
@@ -175,6 +193,11 @@ namespace ProductForm
             Form5 form5 = new Form5();
             form5.Show();
             this.Hide(); // Hide the current form
+        }
+
+        private void quantity_ValueChanged(object sender, EventArgs e)
+        {
+
         }
     }
 }
