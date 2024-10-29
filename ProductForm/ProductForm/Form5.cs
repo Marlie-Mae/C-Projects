@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Data;
 using System.Windows.Forms;
 using Microsoft.Data.SqlClient;
@@ -59,6 +59,30 @@ namespace ProductForm
             dataGridView1.Columns["Supplier"].HeaderText = "Supplier";
             dataGridView1.Columns["Customer"].HeaderText = "Customer";
         }
+
+        private void txtsearch_TextChanged(object sender, EventArgs e)
+        {
+            // Check if combinedTable has data to filter
+            if (combinedTable != null)
+            {
+                string filterText = txtsearch.Text.Trim();
+
+                // Set up filter across multiple columns (Product_ID, Product_Name, Supplier, Customer, Transaction_Type, Transaction_Date, Quantity, Unit)
+                string filterExpression = $"Product_ID LIKE '%{filterText}%' " +
+                                          $"OR Product_Name LIKE '%{filterText}%' " +
+                                          $"OR Supplier LIKE '%{filterText}%' " +
+                                          $"OR Customer LIKE '%{filterText}%' " +
+                                          $"OR Transaction_Type LIKE '%{filterText}%' " +
+                                          $"OR CONVERT(Transaction_Date, 'System.String') LIKE '%{filterText}%' " +
+                                          $"OR Quantity LIKE '%{filterText}%' " +
+                                          $"OR Unit LIKE '%{filterText}%'";
+
+                // Apply filter to the DataView
+                DataView dv = combinedTable.DefaultView;
+                dv.RowFilter = filterExpression;
+            }
+        }
+
 
         private void comboHistory_SelectedIndexChanged(object sender, EventArgs e)
         {
