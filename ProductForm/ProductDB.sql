@@ -39,8 +39,6 @@ DBCC CHECKIDENT ('History', RESEED, 0);
 -- Step 3: Delete all records from the Products table
 DELETE FROM Products;
 
--- Check for data in History
-SELECT * FROM History;
 
--- Check for data in Products
+SELECT * FROM History;
 SELECT * FROM Products;
