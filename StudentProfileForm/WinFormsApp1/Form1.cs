@@ -19,8 +19,7 @@ namespace WinFormsApp1
             comboBox1.Items.Add("Female");
             comboBox1.Items.Add("Other");
 
-            // Set placeholder for StudentID TextBox
-            textBox4.Text = "Auto-generated ID"; // Placeholder text
+            textBox4.Text = "Auto-generated ID"; 
             textBox4.ForeColor = SystemColors.GrayText; // Placeholder color
 
             // Subscribe to the TextChanged event for search functionality
